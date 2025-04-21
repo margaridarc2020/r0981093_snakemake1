@@ -46,7 +46,7 @@ rule bwa_bai:
     output:
         '000.fastq/020.bwa/{sample}_bwa.bam.bai'
     shell:
-        'samtools index {input} -o {output}'
+        'samtools index {input} {output}'
 
 rule samtools_stats:
     input:
