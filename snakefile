@@ -1,4 +1,4 @@
-DB = "/staging/leuven/stg_00079/teaching/hg38_9/chr9.fa"
+DB = "/staging/leuven/stg_00079/teaching/hg38_21/chr21.fa"
 SNPEFF_JAR="/lustre1/project/stg_00079/teaching/I0U19a_conda_2025/share/snpeff-5.2-1/snpEff.jar"
 
 import glob
@@ -7,78 +7,77 @@ all_samples = glob_wildcards('000.fastq/{sample}.fastq').sample
 rule all:
     default_target: True
     input:
-        expand('000.fastq/010.fastqc/{sample}_fastqc.zip', sample=all_samples),
-        ['000.fastq/020.bwa/{}_bwa.bam'.format(sample) for sample in all_samples],
-        expand('000.fastq/020.bwa/{sample}_bwa.bam.bai',sample=all_samples),
-        expand('000.fastq/030.samtools/{sample}_stats.tsv', sample=all_samples),        
-        '000.fastq/030.samtools/raw_snps.vcf',
-        '000.fastq/040.cleaned/clean_snps.vcf',
-        '000.fastq/050.snpeff/annotated_snps.vcf',
-        '000.fastq/vcf.sqlite',
-        '000.fastq/high_impact_differential_snps.tsv'
-        
+        expand('010.fastqc/{sample}_fastqc.zip', sample=all_samples),
+        ['020.bwa/{}_bwa.bam'.format(sample) for sample in all_samples],
+        expand('020.bwa/{sample}_bwa.bam.bai',sample=all_samples),
+        expand('030.samtools/{sample}_stats.tsv', sample=all_samples),        
+        '030.samtools/raw_snps.vcf',
+        '040.cleaned/clean_snps.vcf',
+        '050.snpeff/annotated_snps.vcf',
+        'vcf.sqlite',
+        'high_impact_differential_snps.tsv'
 
 rule fastqc:
 	input:
 		'000.fastq/{sample}.fastq'
 	output:
-		'000.fastq/010.fastqc/{sample}_fastqc.zip',
+		'010.fastqc/{sample}_fastqc.zip',
 	shell:
 		'''
-        mkdir -p 000.fastq/010.fastqc &&
-        fastqc {input} -o 000.fastq/010.fastqc/ 
+        mkdir -p 010.fastqc &&
+        fastqc {input} -o 010.fastqc/ 
         '''
 
 rule bwa:
     input:
         '000.fastq/{sample}.fastq'
     output:
-        '000.fastq/020.bwa/{sample}_bwa.bam'
+        '020.bwa/{sample}_bwa.bam'
     shell:
         '''
-        mkdir -p 000.fastq/020.bwa &&
+        mkdir -p 020.bwa &&
         bwa mem {DB} {input} | samtools sort -o {output} -        
         '''
 
 rule bwa_bai:
     input:
-        '000.fastq/020.bwa/{sample}_bwa.bam'
+        '020.bwa/{sample}_bwa.bam'
     output:
-        '000.fastq/020.bwa/{sample}_bwa.bam.bai'
+        '020.bwa/{sample}_bwa.bam.bai'
     shell:
         'samtools index {input} {output}'
 
 rule samtools_stats:
     input:
-        '000.fastq/020.bwa/{sample}_bwa.bam'
+        '020.bwa/{sample}_bwa.bam'
     output:
-        '000.fastq/030.samtools/{sample}_stats.tsv'
+        '030.samtools/{sample}_stats.tsv'
     shell:
         '''
-        mkdir -p 000.fastq/030.samtools &&
+        mkdir -p 030.samtools &&
         samtools flagstat {input} > {output}
         '''
 
 rule samtools:
     input:
-        '000.fastq/020.bwa/TLE66_N_bwa.bam', 
-        '000.fastq/020.bwa/TLE66_T_bwa.bam'
+        '020.bwa/TLE66_N_bwa.bam', 
+        '020.bwa/TLE66_T_bwa.bam'
     output:
-        '000.fastq/030.samtools/raw_snps.vcf'
+        '030.samtools/raw_snps.vcf'
     shell:
         '''
-        mkdir -p 000.fastq/030.samtools &&
+        mkdir -p 030.samtools &&
         bcftools mpileup -Ou -f {DB} {input} | bcftools call -mv -Ov -o {output}
         '''
 
 rule cleaned:
     input:
-        '000.fastq/030.samtools/raw_snps.vcf'
+        '030.samtools/raw_snps.vcf'
     output:
-        '000.fastq/040.cleaned/clean_snps.vcf'
+        '040.cleaned/clean_snps.vcf'
     shell:
         '''
-        mkdir -p 000.fastq/040.cleaned &&
+        mkdir -p 040.cleaned &&
         cat {input} | vt decompose - \
         | vt normalize -n -r {DB} - \
         | vt uniq - | vt view -f "QUAL>20" -h - > {output}
@@ -86,12 +85,12 @@ rule cleaned:
 
 rule snpeff:
     input:
-        '000.fastq/040.cleaned/clean_snps.vcf'
+        '040.cleaned/clean_snps.vcf'
     output:
-        '000.fastq/050.snpeff/annotated_snps.vcf'
+        '050.snpeff/annotated_snps.vcf'
     shell:
         '''
-        mkdir -p 000.fastq/050.snpeff &&
+        mkdir -p 050.snpeff &&
         java -Xmx3400m -jar {SNPEFF_JAR} eff hg38 \
         -dataDir /staging/leuven/stg_00079/teaching/snpeff_db \
         {input} \
@@ -100,9 +99,9 @@ rule snpeff:
 
 rule vcf_db:
     input:
-        vcf="000.fastq/050.snpeff/annotated_snps.vcf"
+        vcf="050.snpeff/annotated_snps.vcf"
     output:
-        db="000.fastq/vcf.sqlite"
+        db="vcf.sqlite"
     run:
         import pandas as pd
         import vcfpy
@@ -179,9 +178,9 @@ rule vcf_db:
 
 rule sqlite_to_tsv:
     input:
-        vcf="000.fastq/vcf.sqlite"
+        vcf="vcf.sqlite"
     output:
-        tsv="000.fastq/high_impact_differential_snps.tsv"
+        tsv="high_impact_differential_snps.tsv"
     run:
         import pandas as pd
         import sqlite3
